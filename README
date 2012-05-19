@@ -1,0 +1,17 @@
+Traces execution paths in a JVM.
+
+Build
+-----
+
+$ cd agent
+$ mvn clean install
+$ cd ../client
+$ mvn clean install
+
+Run
+---
+
+After Build, from within client subfolder:
+
+$ cd target
+$ java -jar tracer-client.jar <pid>

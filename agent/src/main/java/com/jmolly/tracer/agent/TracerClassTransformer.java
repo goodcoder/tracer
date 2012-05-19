@@ -20,7 +20,7 @@ import java.security.ProtectionDomain;
 public final class TracerClassTransformer implements ClassFileTransformer {
 
     private static final String PKG_AGENT = "com.jmolly.tracer.agent";
-    private static final String PKG_MODEL = "com.jmolly.tracer.model";
+    private static final String PKG_MODEL = "com.jmolly.tracer.agent.model";
 
     // ClassPool with system classpath, as we want to inject bytecode that calls system classes
     private final ClassPool pool = new ClassPool(true);
@@ -43,7 +43,6 @@ public final class TracerClassTransformer implements ClassFileTransformer {
         }
     }
 
-    @Override
     public byte[] transform(ClassLoader loader,
                             String className,
                             Class<?> classBeingRedefined,

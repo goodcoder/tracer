@@ -1,4 +1,4 @@
-package com.jmolly.tracer.model;
+package com.jmolly.tracer.agent.model;
 
 import java.util.ArrayList;
 import java.util.List;
