@@ -4,13 +4,13 @@
 
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.jmolly.java</groupId>
-    <artifactId>tracer</artifactId>
+    <groupId>com.jmolly.tracer</groupId>
+    <artifactId>tracer-client</artifactId>
     <version>0.1-SNAPSHOT</version>
     <packaging>jar</packaging>
 
-    <name>Tracer</name>
-    <description>Traces Java executions.</description>
+    <name>Tracer Client</name>
+    <description>Client to Tracer agent.</description>
     <url>https://github.com/jmolly/tracer</url>
 
     <scm>
@@ -35,11 +35,6 @@
     </licenses>
 
     <dependencies>
-        <dependency>
-            <groupId>org.javassist</groupId>
-            <artifactId>javassist</artifactId>
-            <version>3.16.1-GA</version>
-        </dependency>
         <dependency>
             <groupId>org.testng</groupId>
             <artifactId>testng</artifactId>
@@ -78,43 +73,6 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>2.12</version>
-            </plugin>
-            <plugin>
-                <artifactId>maven-shade-plugin</artifactId>
-                <version>1.6</version>
-                <executions>
-                    <execution>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>shade</goal>
-                        </goals>
-                        <configuration>
-                            <artifactSet>
-                                <includes>
-                                    <!--<include>presspass.heatlamp:heatlamp-trace-spi</include>-->
-                                    <!--<include>com.google.code.gson:gson</include>-->
-                                    <include>org.javassist:javassist</include>
-                                </includes>
-                            </artifactSet>
-                            <transformers>
-                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                    <manifestEntries>
-                                        <Premain-Class>com.jmolly.tracer.agent.TracerAgent</Premain-Class>
-                                        <Agent-Class>com.jmolly.tracer.agent.TracerAgent</Agent-Class>
-                                        <Can-Redefine-Classes>true</Can-Redefine-Classes>
-                                        <Can-Retransform-Classes>true</Can-Retransform-Classes>
-                                    </manifestEntries>
-                                </transformer>
-                            </transformers>
-                            <relocations>
-                                <relocation>
-                                    <pattern>javassist</pattern>
-                                    <shadedPattern>com.jmolly.javassist</shadedPattern>
-                                </relocation>
-                            </relocations>
-                        </configuration>
-                    </execution>
-                </executions>
             </plugin>
         </plugins>
     </build>
