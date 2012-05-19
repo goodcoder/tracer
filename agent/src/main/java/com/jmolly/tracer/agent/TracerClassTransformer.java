@@ -56,6 +56,11 @@ public final class TracerClassTransformer implements ClassFileTransformer {
         try {
             ByteArrayInputStream inBytes = new ByteArrayInputStream(classbytes);
             CtClass ctClass = pool.makeClass(inBytes);
+            if (ctClass.getAttribute("com.jmolly.tracer") != null) {
+                // we've already instrumented this class
+                return null;
+            }
+            ctClass.setAttribute("com.jmolly.tracer", new byte[] { 1 });
             for (CtMethod method : ctClass.getDeclaredMethods()) {
                 if ((method.getModifiers() & Modifier.ABSTRACT) == 0
                         && (method.getModifiers() & Modifier.NATIVE) == 0) {
