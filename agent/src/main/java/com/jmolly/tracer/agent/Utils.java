@@ -8,4 +8,14 @@ public class Utils {
         return className.replaceAll("/", ".");
     }
 
+    public static void log(String msg) {
+        System.out.println("[tracer-agent] " + msg);
+    }
+
+    public static void assertFalse(boolean value) {
+        if (value) {
+            throw new IllegalStateException();
+        }
+    }
+
 }

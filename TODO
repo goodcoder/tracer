@@ -1,0 +1,1 @@
+* don't let socket connection hang jvm that wants to terminate?

@@ -19,18 +19,35 @@ import java.security.ProtectionDomain;
 
 public final class TracerClassTransformer implements ClassFileTransformer {
 
+    // todo helpful to support growing "slice" and not instrumenting everything up front?
+
     private static final String PKG_AGENT = "com.jmolly.tracer.agent";
     private static final String PKG_MODEL = "com.jmolly.tracer.agent.model";
 
     // ClassPool with system classpath, as we want to inject bytecode that calls system classes
     private final ClassPool pool = new ClassPool(true);
     private final Instrumentation instrumentation;
+    // after removing a transformer, we may still be invoked (see removeTransformer javadoc)
+    private volatile boolean active = true;
 
     public TracerClassTransformer(Instrumentation instrumentation) {
         this.instrumentation = instrumentation;
     }
 
-    public void reconfigure() {
+    public void install() {
+        instrumentation.addTransformer(this, true);
+        internalRetransformClasses();
+    }
+
+    public void uninstall() {
+        active = false;
+        instrumentation.removeTransformer(this);
+    }
+
+    private void internalRetransformClasses() {
+        if (!active) {
+            return;
+        }
         try {
             Class[] cs = instrumentation.getAllLoadedClasses();
             for (Class c : cs) {
@@ -48,6 +65,9 @@ public final class TracerClassTransformer implements ClassFileTransformer {
                             Class<?> classBeingRedefined,
                             ProtectionDomain protectionDomain,
                             byte[] classbytes) throws IllegalClassFormatException {
+        if (!active) {
+            return null;
+        }
         if (className.startsWith("java/")
                 || className.startsWith("com/jmolly/")
                 || className.startsWith("sun/")) {
@@ -78,7 +98,7 @@ public final class TracerClassTransformer implements ClassFileTransformer {
                                     // instance id is type classname if static invocation
                                     (isStatic ?
                                         ("\"" + javaClassName + "\", \"" + javaClassName + "\"") :
-                                        ("\"String.valueOf(System.identityHashCode())\", $0.getClass().getName()")) +
+                                        ("String.valueOf(System.identityHashCode(this)), this.getClass().getName()")) +
                                 ")," + // IN.c
                                 PKG_MODEL + ".CL.c(" +
                                     "\"" + javaClassName + "\",\"" + methodName + "\"" +
@@ -106,7 +126,7 @@ public final class TracerClassTransformer implements ClassFileTransformer {
                                         // instance id is type classname if static invocation
                                         (isStatic ?
                                             ("\"" + javaClassName + "\", \"" + javaClassName + "\"") :
-                                            ("\"String.valueOf(System.identityHashCode())\", $0.getClass().getName()")) +
+                                            ("String.valueOf(System.identityHashCode(this)), this.getClass().getName()")) +
                                     ")," + // IN.c
                                     PKG_MODEL + ".CL.c(" +
                                         "\"" + javaClassName + "\",\"" + methodName + "\"" +
@@ -140,7 +160,7 @@ public final class TracerClassTransformer implements ClassFileTransformer {
                                                 // instance id is type classname if static invocation
                                                 (isStatic ?
                                                     ("\"" + javaClassName + "\", \"" + javaClassName + "\"") :
-                                                    ("\"String.valueOf(System.identityHashCode())\", $0.getClass().getName()")) +
+                                                    ("String.valueOf(System.identityHashCode(this)), this.getClass().getName()")) +
                                             ")," + // IN.c
                                             PKG_MODEL + ".CL.c(" +
                                                 "\"" + javaClassName + "\",\"" + methodName + "\"" +
