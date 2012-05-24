@@ -21,10 +21,9 @@ public final class TracerAgent {
     }
 
     public static void agentmain(String args, Instrumentation instrumentation) throws Exception {
-        // fyi - on reload of agent a different Instrumentation instance is provided
         if (server != null) { // agent is being reloaded
-            transformer.uninstall();
-            server.shutdownServer();
+            Utils.log("reloading agent unsupported");
+            return;
         }
         Map<String, String> mapArgs = parseArgs(args);
         int port = getInt("port", mapArgs, DEFAULT_PORT);

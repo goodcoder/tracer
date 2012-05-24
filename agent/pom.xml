@@ -111,13 +111,14 @@
                                 </transformer>
                             </transformers>
                             <relocations>
+                                <!-- relocate everything to *tracer* package; we ignore this package when instrumenting  -->
                                 <relocation>
                                     <pattern>javassist</pattern>
-                                    <shadedPattern>com.jmolly.javassist</shadedPattern>
+                                    <shadedPattern>com.jmolly.tracer.javassist</shadedPattern>
                                 </relocation>
                                 <relocation>
                                     <pattern>com.google.gson</pattern>
-                                    <shadedPattern>com.jmolly.gson</shadedPattern>
+                                    <shadedPattern>com.jmolly.tracer.gson</shadedPattern>
                                 </relocation>
                             </relocations>
                         </configuration>

@@ -8,6 +8,8 @@ import com.jmolly.tracer.agent.model.ME;
 import com.jmolly.tracer.agent.model.MX;
 import com.jmolly.tracer.agent.model.TH;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
@@ -42,10 +44,9 @@ public final class Sink {
         return queue.poll();
     }
 
-    /** Method entry. Provided instance is null if static invocation. */
     public static void me(Object instance, String methodDeclaringClass, String methodName, Object[] args) {
-        try {
-            if (active && !within.get()) { // ensure that no invocations we make within this method trigger infinite recursion
+        if (active && !within.get()) {
+            try {
                 within.set(true);
                 boolean isStatic = null == instance;
                 Thread ct = Thread.currentThread();
@@ -53,21 +54,21 @@ public final class Sink {
                     ME.c(
                         TH.c(String.valueOf(ct.getId()), ct.getName()),
                         isStatic ? IN.c(methodDeclaringClass, methodDeclaringClass)
-                                : IN.c(String.valueOf(System.identityHashCode(instance)), instance.getClass().getName()),
+                                 : IN.c(String.valueOf(System.identityHashCode(instance)), instance.getClass().getName()),
                         CL.c(methodDeclaringClass, methodName),
                         System.currentTimeMillis(),
-                        args
+                        toArgs(args)
                     )
                 );
+            } finally {
+                within.set(false);
             }
-        } finally {
-            within.set(false);
         }
     }
 
     public static void eo(Object e) {
-        try {
-            if (active && !within.get()) { // ensure that no invocations we make within this method trigger infinite recursion
+        if (active && !within.get()) {
+            try {
                 within.set(true);
                 Thread ct = Thread.currentThread();
                 queue.add(
@@ -76,16 +77,17 @@ public final class Sink {
                         e.getClass().getName()
                     )
                 );
+            } finally {
+                within.set(false);
             }
-        } finally {
-            within.set(false);
         }
     }
 
     public static void mx(Object instance, String methodDeclaringClass, String methodName, Object rv) {
-        try {
-            if (active && !within.get()) { // ensure that no invocations we make within this method trigger infinite recursion
+        if (active && !within.get()) { // ensure that no invocations we make within this method trigger infinite recursion
+            try {
                 within.set(true);
+                long time = System.currentTimeMillis();
                 boolean isStatic = null == instance;
                 Thread ct = Thread.currentThread();
                 queue.add(
@@ -94,19 +96,19 @@ public final class Sink {
                         isStatic ? IN.c(methodDeclaringClass, methodDeclaringClass)
                                  : IN.c(String.valueOf(System.identityHashCode(instance)), instance.getClass().getName()),
                         CL.c(methodDeclaringClass, methodName),
-                        String.valueOf(rv),
-                        System.currentTimeMillis()
+                        toString(rv),
+                        time
                     )
                 );
+            } finally {
+                within.set(false);
             }
-        } finally {
-            within.set(false);
         }
     }
 
     public static void ct(Object instance, String methodDeclaringClass, String methodName, Object e) {
-        try {
-            if (active && !within.get()) { // ensure that no invocations we make within this method trigger infinite recursion
+        if (active && !within.get()) {
+            try {
                 within.set(true);
                 boolean isStatic = null == instance;
                 Thread ct = Thread.currentThread();
@@ -120,9 +122,27 @@ public final class Sink {
                         System.currentTimeMillis()
                     )
                 );
+            } finally {
+                within.set(false);
             }
-        } finally {
-            within.set(false);
+        }
+    }
+
+
+    private static List<String> toArgs(Object[] args) {
+        List<String> toArgs = new ArrayList<String>(args.length);
+        for (Object arg : args) {
+            toArgs.add(toString(arg));
+        }
+        return toArgs;
+    }
+
+    private static String toString(Object o) {
+        try {
+            return String.valueOf(o);
+        } catch (Exception e) {
+            // oops, toString of object threw exception
+            return "<err>";
         }
     }
 

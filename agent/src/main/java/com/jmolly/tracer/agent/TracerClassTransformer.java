@@ -27,29 +27,27 @@ public final class TracerClassTransformer implements ClassFileTransformer {
     private int numClassesTransformed = 0;
 
     private final Instrumentation instrumentation;
-    private boolean installed = false;
+    private volatile boolean installed = false;
 
     public TracerClassTransformer(Instrumentation instrumentation) {
         this.instrumentation = instrumentation;
     }
 
-    public synchronized void install() {
+    public void install() {
+        // avoid jvm deadlock: assume low contention and don't synchronize on install
         if (!installed) {
             installed = true;
             instrumentation.addTransformer(this, true);
-            retransformClassesIfNeeded();
+            internalRetransformClasses();
         }
     }
 
-    public synchronized void uninstall() {
+    public void uninstall() {
         installed = false;
         instrumentation.removeTransformer(this);
     }
 
-    public void retransformClassesIfNeeded() {
-        if (!installed) {
-            return;
-        }
+    public void internalRetransformClasses() {
         try {
             Class[] cs = instrumentation.getAllLoadedClasses();
             for (Class c : cs) {
@@ -62,7 +60,7 @@ public final class TracerClassTransformer implements ClassFileTransformer {
         }
     }
 
-    public synchronized byte[] transform(ClassLoader loader,
+    public byte[] transform(ClassLoader loader,
                             String className,
                             Class<?> classBeingRedefined,
                             ProtectionDomain protectionDomain,
@@ -77,8 +75,8 @@ public final class TracerClassTransformer implements ClassFileTransformer {
             return null;
         }
         if (className.startsWith("java/")
-                || className.startsWith("com/jmolly/")
-                || className.startsWith("sun/")) {
+            || className.startsWith("sun/")
+            || className.startsWith("com/jmolly/tracer/")) {
             return null;
         }
         synchronized (classLoaders) {
@@ -108,8 +106,8 @@ public final class TracerClassTransformer implements ClassFileTransformer {
                     method.addCatch("{ com.jmolly.tracer.agent.Sink.eo($e); throw $e; }",
                         classPool.get("java.lang.Throwable"));
                     method.insertAfter(
-                        "{ com.jmolly.tracer.agent.Sink.mx(" + (isStatic ? "null" : "this") +
-                            ",\"" + javaClassName + "\", \"" + methodName + "\", $_); }", true/*asFinally*/);
+                            "{ com.jmolly.tracer.agent.Sink.mx(" + (isStatic ? "null" : "this") +
+                                    ",\"" + javaClassName + "\", \"" + methodName + "\", ($w)$_); }", true/*asFinally*/);
                     method.instrument(new ExprEditor() {
                         @Override
                         public void edit(Handler h) throws CannotCompileException {

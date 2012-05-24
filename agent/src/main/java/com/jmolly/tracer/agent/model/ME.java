@@ -1,11 +1,10 @@
 package com.jmolly.tracer.agent.model;
 
-import java.util.ArrayList;
 import java.util.List;
 
 public final class ME {
 
-    public static ME c(TH th, IN in, CL cl, long time, Object[] args) {
+    public static ME c(TH th, IN in, CL cl, long time, List<String> args) {
         return new ME(th, in, cl, time, args);
     }
 
@@ -15,15 +14,12 @@ public final class ME {
     public final long time;
     public final List<String> args;
 
-    public ME(TH th, IN in, CL cl, long time, Object[] args) {
+    public ME(TH th, IN in, CL cl, long time, List<String> args) {
         this.th = th;
         this.in = in;
         this.cl = cl;
         this.time = time;
-        this.args = new ArrayList<String>(args.length);
-        for (Object arg : args) {
-            this.args.add(String.valueOf(arg));
-        }
+        this.args = args;
     }
 
     @Override

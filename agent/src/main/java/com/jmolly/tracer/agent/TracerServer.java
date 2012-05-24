@@ -105,7 +105,7 @@ public final class TracerServer extends Thread {
                                 downstream.println("PONG");
                             }
                         }
-                    } else if (line.startsWith("CONFIGURE")) {
+                    } else if (line.startsWith("CONF")) {
                         long start = System.currentTimeMillis();
                         transformer.install();
                         long time = System.currentTimeMillis() - start;
@@ -115,7 +115,7 @@ public final class TracerServer extends Thread {
                                 downstream.println("OK " + time + "ms");
                             }
                         }
-                    } else if (line.startsWith("START")) { // start trace
+                    } else if (line.startsWith("GO")) { // start trace
                         synchronized (handlers) {
                             if (traceStreamHandler == null) { // START is ignored if we're already streaming
                                 traceStreamHandler = new TraceStreamHandler(this, downstream);
@@ -126,7 +126,7 @@ public final class TracerServer extends Thread {
                         }
                     } else if (line.startsWith("STOP")) { // stop trace
                         stopTraceStreamHandler();
-                    } else if (line.startsWith("DISCONNECT")) {
+                    } else if (line.startsWith("EXIT")) {
                         synchronized (handlers) {
                             if (traceStreamHandler != null && traceStreamHandler.isOwner(this)) {
                                 // this client is the owner
