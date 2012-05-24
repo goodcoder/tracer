@@ -14,6 +14,7 @@ public final class TracerAgent {
     public static void premain(String args, Instrumentation instrumentation) {
         Map<String, String> mapArgs = parseArgs(args);
         int port = getInt("port", mapArgs, DEFAULT_PORT);
+        Utils.logEnabled = getBool("log", mapArgs, false);
         transformer = new TracerClassTransformer(instrumentation);
         transformer.install();
         server = new TracerServer(transformer, port);
@@ -22,12 +23,13 @@ public final class TracerAgent {
 
     public static void agentmain(String args, Instrumentation instrumentation) throws Exception {
         // fyi - on reload of agent a different Instrumentation instance is provided
-        if (server != null) {
+        if (server != null) { // agent is being reloaded
             transformer.uninstall();
             server.shutdownServer();
         }
         Map<String, String> mapArgs = parseArgs(args);
         int port = getInt("port", mapArgs, DEFAULT_PORT);
+        Utils.logEnabled = getBool("log", mapArgs, false);
         transformer = new TracerClassTransformer(instrumentation);
         transformer.install();
         server = new TracerServer(transformer, port);
@@ -49,6 +51,10 @@ public final class TracerAgent {
 
     private static int getInt(String key, Map<String, String> map, int backup) {
         return map.containsKey(key) ? Integer.parseInt(map.get(key)) : backup;
+    }
+
+    private static boolean getBool(String key, Map<String, String> map, boolean backup) {
+        return map.containsKey(key) ? Boolean.parseBoolean(map.get(key)) : backup;
     }
 
 }

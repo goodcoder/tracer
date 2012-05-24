@@ -1,6 +1,8 @@
 package com.jmolly.tracer.agent;
 
-public class Utils {
+public final class Utils {
+
+    public static volatile boolean logEnabled = false;
 
     private Utils() {}
 
@@ -9,7 +11,15 @@ public class Utils {
     }
 
     public static void log(String msg) {
-        System.out.println("[tracer-agent] " + msg);
+        if (logEnabled) {
+            System.out.println("[tracer-agent] " + msg);
+        }
+    }
+
+    public static void log(Exception e) {
+        if (logEnabled) {
+            e.printStackTrace(System.out);
+        }
     }
 
     public static void assertFalse(boolean value) {

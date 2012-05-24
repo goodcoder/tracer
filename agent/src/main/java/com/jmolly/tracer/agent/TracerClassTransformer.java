@@ -4,6 +4,7 @@ import javassist.CannotCompileException;
 import javassist.ClassPool;
 import javassist.CtClass;
 import javassist.CtMethod;
+import javassist.LoaderClassPath;
 import javassist.Modifier;
 import javassist.NotFoundException;
 import javassist.expr.ExprEditor;
@@ -16,16 +17,20 @@ import java.lang.instrument.IllegalClassFormatException;
 import java.lang.instrument.Instrumentation;
 import java.lang.instrument.UnmodifiableClassException;
 import java.security.ProtectionDomain;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 public final class TracerClassTransformer implements ClassFileTransformer {
-
-    // todo helpful to support growing "slice" and not instrumenting everything up front?
 
     private static final String PKG_AGENT = "com.jmolly.tracer.agent";
     private static final String PKG_MODEL = "com.jmolly.tracer.agent.model";
 
-    // ClassPool with system classpath, as we want to inject bytecode that calls system classes
-    private final ClassPool pool = new ClassPool(true);
+    private final ClassPool classPool = ClassPool.getDefault();
+    private final Set<ClassLoader> classLoaders = new HashSet<ClassLoader>();
+    private int numClassesTransformed = 0;
+
     private final Instrumentation instrumentation;
     // after removing a transformer, we may still be invoked (see removeTransformer javadoc)
     private volatile boolean active = true;
@@ -36,7 +41,6 @@ public final class TracerClassTransformer implements ClassFileTransformer {
 
     public void install() {
         instrumentation.addTransformer(this, true);
-        internalRetransformClasses();
     }
 
     public void uninstall() {
@@ -44,17 +48,19 @@ public final class TracerClassTransformer implements ClassFileTransformer {
         instrumentation.removeTransformer(this);
     }
 
-    private void internalRetransformClasses() {
+    public void retransformClassesIfNeeded() {
         if (!active) {
             return;
         }
         try {
             Class[] cs = instrumentation.getAllLoadedClasses();
+            List<Class> toRetransform = new ArrayList<Class>();
             for (Class c : cs) {
                 if (instrumentation.isModifiableClass(c)) {
-                    instrumentation.retransformClasses(c);
+                    toRetransform.add(c);
                 }
             }
+            instrumentation.retransformClasses(toRetransform.toArray(new Class<?>[toRetransform.size()]));
         } catch (UnmodifiableClassException e) {
             throw new RuntimeException(e);
         }
@@ -73,9 +79,15 @@ public final class TracerClassTransformer implements ClassFileTransformer {
                 || className.startsWith("sun/")) {
             return null;
         }
+        synchronized (classLoaders) {
+            if (!classLoaders.contains(loader)) {
+                classLoaders.add(loader);
+                classPool.insertClassPath(new LoaderClassPath(loader));
+            }
+        }
         try {
             ByteArrayInputStream inBytes = new ByteArrayInputStream(classbytes);
-            CtClass ctClass = pool.makeClass(inBytes);
+            CtClass ctClass = classPool.makeClass(inBytes);
             if (ctClass.getAttribute("com.jmolly.tracer") != null) {
                 // we've already instrumented this class
                 return null;
@@ -91,22 +103,22 @@ public final class TracerClassTransformer implements ClassFileTransformer {
                         "{ Thread ct = Thread.currentThread(); " +
                             PKG_AGENT + ".Sink.put(" +
                             PKG_MODEL + ".ME.c(" +
-                                PKG_MODEL + ".TH.c(" +
-                                    "String.valueOf(ct.getId()), ct.getName()" +
-                                ")," + // TH.c
-                                PKG_MODEL + ".IN.c(" +
-                                    // instance id is type classname if static invocation
-                                    (isStatic ?
-                                        ("\"" + javaClassName + "\", \"" + javaClassName + "\"") :
-                                        ("String.valueOf(System.identityHashCode(this)), this.getClass().getName()")) +
-                                ")," + // IN.c
-                                PKG_MODEL + ".CL.c(" +
-                                    "\"" + javaClassName + "\",\"" + methodName + "\"" +
-                                ")," + // CL.c
-                                "System.currentTimeMillis()," +
-                                "java.util.Arrays.asList($args)" +
+                            PKG_MODEL + ".TH.c(" +
+                            "String.valueOf(ct.getId()), ct.getName()" +
+                            ")," + // TH.c
+                            PKG_MODEL + ".IN.c(" +
+                            // instance id is type classname if static invocation
+                            (isStatic ?
+                                    ("\"" + javaClassName + "\", \"" + javaClassName + "\"") :
+                                    ("String.valueOf(System.identityHashCode(this)), this.getClass().getName()")) +
+                            ")," + // IN.c
+                            PKG_MODEL + ".CL.c(" +
+                            "\"" + javaClassName + "\",\"" + methodName + "\"" +
+                            ")," + // CL.c
+                            "System.currentTimeMillis()," +
+                            "java.util.Arrays.asList($args)" +
                             ")" + // ME.c
-                        "); }" // Sink.put
+                            "); }" // Sink.put
                     );
                     // outermost catch to observe throwables; rethrows
                     method.addCatch("{" +
@@ -114,7 +126,7 @@ public final class TracerClassTransformer implements ClassFileTransformer {
                                 PKG_MODEL + ".EO.c($e.getClass().getName())" +
                             ");" + // Sink.put
                             "throw $e;" +
-                    "}", pool.get("java.lang.Throwable"));
+                    "}", classPool.get("java.lang.Throwable"));
                     method.insertAfter(
                         "{ Thread ct = Thread.currentThread(); " +
                             PKG_AGENT + ".Sink.put(" +
@@ -144,8 +156,6 @@ public final class TracerClassTransformer implements ClassFileTransformer {
                                     return;
                                 }
                             } catch (NotFoundException e) {
-                                // todo -- how to guarantee this never happens? do we need to create ClassPool
-                                // todo -- hierarchy tree for classloader hierarchy trees?
                                 e.printStackTrace();
                                 throw new RuntimeException(e);
                             }
@@ -176,6 +186,10 @@ public final class TracerClassTransformer implements ClassFileTransformer {
             }
             byte[] outBytes = ctClass.toBytecode();
             ctClass.detach();
+            ++numClassesTransformed;
+            if (numClassesTransformed % 1000 == 0) {
+                Utils.log(numClassesTransformed + " total classes transformed");
+            }
             return outBytes;
         } catch (IOException e) {
             throw new RuntimeException(e);

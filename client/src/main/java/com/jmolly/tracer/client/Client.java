@@ -23,7 +23,7 @@ public class Client {
     private static void loadAgent(File file, String pid) {
         try {
             VirtualMachine vm = VirtualMachine.attach(pid);
-            vm.loadAgent(file.getAbsolutePath(), "port=5555");
+            vm.loadAgent(file.getAbsolutePath(), "port=5555,log=true");
             vm.detach();
         } catch (AttachNotSupportedException e) {
             throw new RuntimeException(e);

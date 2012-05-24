@@ -1,1 +1,2 @@
 * don't let socket connection hang jvm that wants to terminate?
+* helpful to support growing "slice" and not instrumenting everything up front?
