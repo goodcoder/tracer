@@ -5,7 +5,7 @@ import java.util.List;
 
 public final class ME {
 
-    public static ME c(TH th, IN in, CL cl, long time, List<Object> args) {
+    public static ME c(TH th, IN in, CL cl, long time, Object[] args) {
         return new ME(th, in, cl, time, args);
     }
 
@@ -15,14 +15,14 @@ public final class ME {
     public final long time;
     public final List<String> args;
 
-    public ME(TH th, IN in, CL cl, long time, List<Object> args) {
+    public ME(TH th, IN in, CL cl, long time, Object[] args) {
         this.th = th;
         this.in = in;
         this.cl = cl;
         this.time = time;
-        this.args = new ArrayList<String>(args.size());
+        this.args = new ArrayList<String>(args.length);
         for (Object arg : args) {
-            this.args.add(arg.toString());
+            this.args.add(String.valueOf(arg));
         }
     }
 

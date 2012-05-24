@@ -16,7 +16,6 @@ public final class TracerAgent {
         int port = getInt("port", mapArgs, DEFAULT_PORT);
         Utils.logEnabled = getBool("log", mapArgs, false);
         transformer = new TracerClassTransformer(instrumentation);
-        transformer.install();
         server = new TracerServer(transformer, port);
         server.start();
     }
@@ -31,7 +30,6 @@ public final class TracerAgent {
         int port = getInt("port", mapArgs, DEFAULT_PORT);
         Utils.logEnabled = getBool("log", mapArgs, false);
         transformer = new TracerClassTransformer(instrumentation);
-        transformer.install();
         server = new TracerServer(transformer, port);
         server.start();
     }

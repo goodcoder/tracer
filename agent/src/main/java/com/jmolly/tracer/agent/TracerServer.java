@@ -107,7 +107,7 @@ public final class TracerServer extends Thread {
                         }
                     } else if (line.startsWith("CONFIGURE")) {
                         long start = System.currentTimeMillis();
-                        transformer.retransformClassesIfNeeded();
+                        transformer.install();
                         long time = System.currentTimeMillis() - start;
                         synchronized (handlers) {
                             if (traceStreamHandler == null || !traceStreamHandler.isOwner(this)) {
@@ -176,9 +176,13 @@ public final class TracerServer extends Thread {
                 Utils.assertFalse(Sink.isActive());
                 Sink.activate();
                 while (!this.isInterrupted()) {
-                    Object took = Sink.take();
-                    gson.toJson(took, took.getClass(), jsonWriter);
-                    jsonWriter.flush();
+                    Object poll = Sink.poll();
+                    if (poll == null) {
+                        jsonWriter.flush();
+                        Thread.sleep(100);
+                        continue;
+                    }
+                    gson.toJson(poll, poll.getClass(), jsonWriter);
                 }
             } catch (InterruptedException e) {
                 // okay

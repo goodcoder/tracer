@@ -17,61 +17,63 @@ import java.lang.instrument.IllegalClassFormatException;
 import java.lang.instrument.Instrumentation;
 import java.lang.instrument.UnmodifiableClassException;
 import java.security.ProtectionDomain;
-import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 
 public final class TracerClassTransformer implements ClassFileTransformer {
-
-    private static final String PKG_AGENT = "com.jmolly.tracer.agent";
-    private static final String PKG_MODEL = "com.jmolly.tracer.agent.model";
 
     private final ClassPool classPool = ClassPool.getDefault();
     private final Set<ClassLoader> classLoaders = new HashSet<ClassLoader>();
     private int numClassesTransformed = 0;
 
     private final Instrumentation instrumentation;
-    // after removing a transformer, we may still be invoked (see removeTransformer javadoc)
-    private volatile boolean active = true;
+    private boolean installed = false;
 
     public TracerClassTransformer(Instrumentation instrumentation) {
         this.instrumentation = instrumentation;
     }
 
-    public void install() {
-        instrumentation.addTransformer(this, true);
+    public synchronized void install() {
+        if (!installed) {
+            installed = true;
+            instrumentation.addTransformer(this, true);
+            retransformClassesIfNeeded();
+        }
     }
 
-    public void uninstall() {
-        active = false;
+    public synchronized void uninstall() {
+        installed = false;
         instrumentation.removeTransformer(this);
     }
 
     public void retransformClassesIfNeeded() {
-        if (!active) {
+        if (!installed) {
             return;
         }
         try {
             Class[] cs = instrumentation.getAllLoadedClasses();
-            List<Class> toRetransform = new ArrayList<Class>();
             for (Class c : cs) {
                 if (instrumentation.isModifiableClass(c)) {
-                    toRetransform.add(c);
+                    instrumentation.retransformClasses(c);
                 }
             }
-            instrumentation.retransformClasses(toRetransform.toArray(new Class<?>[toRetransform.size()]));
         } catch (UnmodifiableClassException e) {
             throw new RuntimeException(e);
         }
     }
 
-    public byte[] transform(ClassLoader loader,
+    public synchronized byte[] transform(ClassLoader loader,
                             String className,
                             Class<?> classBeingRedefined,
                             ProtectionDomain protectionDomain,
                             byte[] classbytes) throws IllegalClassFormatException {
-        if (!active) {
+        if (!installed) {
+            // after removing a transformer, we may still be invoked (see removeTransformer javadoc)
+            return null;
+        }
+        if (loader.getParent() == null) {
+            // assume bootstrap classloader
+            Utils.log("not instrumenting class from bootstrap classloader: " + className);
             return null;
         }
         if (className.startsWith("java/")
@@ -100,54 +102,14 @@ public final class TracerClassTransformer implements ClassFileTransformer {
                     final String javaClassName = Utils.toJavaName(className);
                     final String methodName = method.getName();
                     method.insertBefore(
-                        "{ Thread ct = Thread.currentThread(); " +
-                            PKG_AGENT + ".Sink.put(" +
-                            PKG_MODEL + ".ME.c(" +
-                            PKG_MODEL + ".TH.c(" +
-                            "String.valueOf(ct.getId()), ct.getName()" +
-                            ")," + // TH.c
-                            PKG_MODEL + ".IN.c(" +
-                            // instance id is type classname if static invocation
-                            (isStatic ?
-                                    ("\"" + javaClassName + "\", \"" + javaClassName + "\"") :
-                                    ("String.valueOf(System.identityHashCode(this)), this.getClass().getName()")) +
-                            ")," + // IN.c
-                            PKG_MODEL + ".CL.c(" +
-                            "\"" + javaClassName + "\",\"" + methodName + "\"" +
-                            ")," + // CL.c
-                            "System.currentTimeMillis()," +
-                            "java.util.Arrays.asList($args)" +
-                            ")" + // ME.c
-                            "); }" // Sink.put
-                    );
+                        "{ com.jmolly.tracer.agent.Sink.me(" + (isStatic ? "null" : "this") +
+                            ",\"" + javaClassName + "\", \"" + methodName + "\", $args); }");
                     // outermost catch to observe throwables; rethrows
-                    method.addCatch("{" +
-                        PKG_AGENT + ".Sink.put(" +
-                                PKG_MODEL + ".EO.c($e.getClass().getName())" +
-                            ");" + // Sink.put
-                            "throw $e;" +
-                    "}", classPool.get("java.lang.Throwable"));
+                    method.addCatch("{ com.jmolly.tracer.agent.Sink.eo($e); throw $e; }",
+                        classPool.get("java.lang.Throwable"));
                     method.insertAfter(
-                        "{ Thread ct = Thread.currentThread(); " +
-                            PKG_AGENT + ".Sink.put(" +
-                                PKG_MODEL + ".MX.c(" +
-                                    PKG_MODEL + ".TH.c(" +
-                                        "String.valueOf(ct.getId()), ct.getName()" +
-                                    ")," + // TH.c
-                                    PKG_MODEL + ".IN.c(" +
-                                        // instance id is type classname if static invocation
-                                        (isStatic ?
-                                            ("\"" + javaClassName + "\", \"" + javaClassName + "\"") :
-                                            ("String.valueOf(System.identityHashCode(this)), this.getClass().getName()")) +
-                                    ")," + // IN.c
-                                    PKG_MODEL + ".CL.c(" +
-                                        "\"" + javaClassName + "\",\"" + methodName + "\"" +
-                                    ")," + // CL.c
-                                    "String.valueOf($_)," + // $_ is null if void or null/0 if throwing
-                                    "System.currentTimeMillis()" +
-                                ")" + // MX.c
-                        ");}", // Sink.put
-                    true);
+                        "{ com.jmolly.tracer.agent.Sink.mx(" + (isStatic ? "null" : "this") +
+                            ",\"" + javaClassName + "\", \"" + methodName + "\", $_); }", true/*asFinally*/);
                     method.instrument(new ExprEditor() {
                         @Override
                         public void edit(Handler h) throws CannotCompileException {
@@ -160,26 +122,8 @@ public final class TracerClassTransformer implements ClassFileTransformer {
                                 throw new RuntimeException(e);
                             }
                             h.insertBefore(
-                                "{ Thread ct = Thread.currentThread(); " +
-                                    PKG_AGENT + ".Sink.put(" +
-                                        PKG_MODEL + ".CT.c(" +
-                                            PKG_MODEL + ".TH.c(" +
-                                                "String.valueOf(ct.getId()), ct.getName()" +
-                                            ")," + // TH.c
-                                            PKG_MODEL + ".IN.c(" +
-                                                // instance id is type classname if static invocation
-                                                (isStatic ?
-                                                    ("\"" + javaClassName + "\", \"" + javaClassName + "\"") :
-                                                    ("String.valueOf(System.identityHashCode(this)), this.getClass().getName()")) +
-                                            ")," + // IN.c
-                                            PKG_MODEL + ".CL.c(" +
-                                                "\"" + javaClassName + "\",\"" + methodName + "\"" +
-                                            ")," + // CL.c
-                                            "$1.getClass().getName()," +
-                                            "System.currentTimeMillis()" +
-                                        ")" + // CT.c
-                                ");}" // Sink.put
-                            );
+                                "{ com.jmolly.tracer.agent.Sink.ct(" + (isStatic ? "null" : "this") +
+                                    ",\"" + javaClassName + "\", \"" + methodName + "\", $1); }");
                         }
                     });
                 }
