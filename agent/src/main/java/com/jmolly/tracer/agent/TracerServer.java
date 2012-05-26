@@ -1,6 +1,7 @@
 package com.jmolly.tracer.agent;
 
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.google.gson.JsonIOException;
 import com.google.gson.stream.JsonWriter;
 
@@ -156,7 +157,8 @@ public final class TracerServer extends Thread {
     /** Downstream handler. */
     private final class TraceStreamHandler extends Thread {
 
-        private final Gson gson = new Gson();
+        private final Gson gson = new GsonBuilder()
+            .excludeFieldsWithModifiers(/*include all*/).create();
 
         private final Object owner;
         private final JsonWriter jsonWriter;
@@ -176,13 +178,13 @@ public final class TracerServer extends Thread {
                 Utils.assertFalse(Sink.isActive());
                 Sink.activate();
                 while (!this.isInterrupted()) {
-                    Object poll = Sink.poll();
-                    if (poll == null) {
+                    Object event = Sink.poll();
+                    if (event == null) {
                         jsonWriter.flush();
                         Thread.sleep(100);
                         continue;
                     }
-                    gson.toJson(poll, poll.getClass(), jsonWriter);
+                    gson.toJson(event, event.getClass(), jsonWriter);
                 }
             } catch (InterruptedException e) {
                 // okay

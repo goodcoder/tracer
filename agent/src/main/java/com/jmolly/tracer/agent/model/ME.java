@@ -8,6 +8,8 @@ public final class ME {
         return new ME(th, in, cl, time, args);
     }
 
+    public static final String type = "ME";
+
     public final TH th;
     public final IN in;
     public final CL cl;

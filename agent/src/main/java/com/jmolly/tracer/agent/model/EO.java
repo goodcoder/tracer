@@ -6,6 +6,8 @@ public final class EO { // exception out of a method
         return new EO(th, ename);
     }
 
+    public static final String type = "EO";
+
     public final TH th;
     public final String ename; // exception type name
 

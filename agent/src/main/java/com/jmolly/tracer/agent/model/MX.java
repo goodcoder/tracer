@@ -6,6 +6,8 @@ public final class MX {
         return new MX(th, in, cl, rv, time);
     }
 
+    public static final String type = "MX";
+
     public final TH th;
     public final IN in;
     public final CL cl;

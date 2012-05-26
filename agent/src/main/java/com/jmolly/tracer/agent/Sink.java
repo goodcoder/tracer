@@ -24,6 +24,7 @@ public final class Sink {
             return false;
         }
     };
+    private static volatile ThreadLocal<int[]> relativeStackDepth;
     private static volatile boolean active = false;
 
     public static boolean isActive() {
@@ -31,6 +32,12 @@ public final class Sink {
     }
 
     public static void activate() {
+        relativeStackDepth = new ThreadLocal<int[]>() {
+            @Override
+            protected int[] initialValue() {
+                return new int[] { 1000 };
+            }
+        };
         queue.clear();
         active = true;
     }
@@ -48,11 +55,12 @@ public final class Sink {
         if (active && !within.get()) {
             try {
                 within.set(true);
+                int depth = ++relativeStackDepth.get()[0];
                 boolean isStatic = null == instance;
                 Thread ct = Thread.currentThread();
                 queue.add(
                     ME.c(
-                        TH.c(String.valueOf(ct.getId()), ct.getName()),
+                        TH.c(String.valueOf(ct.getId()), ct.getName(), depth),
                         isStatic ? IN.c(methodDeclaringClass, methodDeclaringClass)
                                  : IN.c(String.valueOf(System.identityHashCode(instance)), instance.getClass().getName()),
                         CL.c(methodDeclaringClass, methodName),
@@ -70,10 +78,11 @@ public final class Sink {
         if (active && !within.get()) {
             try {
                 within.set(true);
+                int depth = relativeStackDepth.get()[0]--;
                 Thread ct = Thread.currentThread();
                 queue.add(
                     EO.c(
-                        TH.c(String.valueOf(ct.getId()), ct.getName()),
+                        TH.c(String.valueOf(ct.getId()), ct.getName(), depth),
                         e.getClass().getName()
                     )
                 );
@@ -87,12 +96,13 @@ public final class Sink {
         if (active && !within.get()) { // ensure that no invocations we make within this method trigger infinite recursion
             try {
                 within.set(true);
+                int depth = relativeStackDepth.get()[0]--;
                 long time = System.currentTimeMillis();
                 boolean isStatic = null == instance;
                 Thread ct = Thread.currentThread();
                 queue.add(
                     MX.c(
-                        TH.c(String.valueOf(ct.getId()), ct.getName()),
+                        TH.c(String.valueOf(ct.getId()), ct.getName(), depth),
                         isStatic ? IN.c(methodDeclaringClass, methodDeclaringClass)
                                  : IN.c(String.valueOf(System.identityHashCode(instance)), instance.getClass().getName()),
                         CL.c(methodDeclaringClass, methodName),
@@ -110,11 +120,12 @@ public final class Sink {
         if (active && !within.get()) {
             try {
                 within.set(true);
+                int depth = relativeStackDepth.get()[0];
                 boolean isStatic = null == instance;
                 Thread ct = Thread.currentThread();
                 queue.add(
                     CT.c(
-                        TH.c(String.valueOf(ct.getId()), ct.getName()),
+                        TH.c(String.valueOf(ct.getId()), ct.getName(), depth),
                         isStatic ? IN.c(methodDeclaringClass, methodDeclaringClass)
                                 : IN.c(String.valueOf(System.identityHashCode(instance)), instance.getClass().getName()),
                         CL.c(methodDeclaringClass, methodName),

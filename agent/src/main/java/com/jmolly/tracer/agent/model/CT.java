@@ -6,6 +6,8 @@ public final class CT { // catch
         return new CT(th, in, cl, tname, time);
     }
 
+    public static final String type = "CT";
+
     public final TH th;
     public final IN in;
     public final CL cl;
